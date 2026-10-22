@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Resolution Calculator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+  /* Layout: one quiet column; the video on top, then the Resolution Calculator with every element fixed in place: readout and instruction first, the location bar, then the four size buttons. */
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1b1d23; --muted: #5d6270; --line: #d9d8d2;
+    --accent: #b8860b; --accent-ink: #5c4300; --accent-soft: #fff3cf; --ok: #2f7d4f; --bad: #b3261e;
+    --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", Consolas, "Courier New", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #14161c; --panel: #1d2028; --ink: #eceef3; --muted: #9aa0ae; --line: #343845; --accent: #ffd650; --accent-ink: #ffe99a; --accent-soft: #3a3113; --ok: #83c167; --bad: #ff8a80; color-scheme: dark; }
+  }
+  :root[data-theme="dark"] { --bg: #14161c; --panel: #1d2028; --ink: #eceef3; --muted: #9aa0ae; --line: #343845; --accent: #ffd650; --accent-ink: #ffe99a; --accent-soft: #3a3113; --ok: #83c167; --bad: #ff8a80; color-scheme: dark; }
+
+  body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 17px; line-height: 1.5;
+         padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+  main { max-width: 920px; margin: 0 auto; display: grid; gap: 36px; }
+  h2 { font-size: 24px; margin: 0; text-wrap: balance; }
+  button { font: inherit; cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+  input::placeholder { color: var(--muted); }
+  input[type=number] { font-family: var(--font-mono); font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield; }
+  input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+  /* video */
+  .player { display: grid; gap: 12px; }
+  video { width: 100%; max-width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; display: block; }
+  .chapters { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { font-size: 15px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); display: inline-flex; gap: 10px; align-items: center; }
+  .chip:hover, .chip:focus-visible { border-color: var(--accent); outline: none; }
+  .chip .t { font-family: var(--font-mono); font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* calculator */
+  .calc { display: grid; gap: 20px; }
+
+  .result { border: 1px solid var(--line); border-left: 6px solid var(--accent); background: var(--panel); border-radius: 10px; padding: 16px 20px; display: grid; gap: 4px; }
+  .readout { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; min-height: 1.1em; }
+  .num { font-family: var(--font-mono); font-size: clamp(30px, 5.25vw, 42px); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; min-width: 4.2ch; }
+  .num.dim { color: var(--muted); }
+  .per { font-size: 17px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .copy { margin-left: auto; font-size: 15px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  .copy:hover:not(:disabled) { border-color: var(--accent); }
+  .copy:disabled { opacity: .45; cursor: default; }
+  .copy.done { border-color: var(--ok); color: var(--ok); }
+  .tiles { font-size: 17px; min-height: 3em; font-variant-numeric: tabular-nums; }
+  .tiles.dim { color: var(--muted); }
+
+  .instr { background: var(--accent-soft); color: var(--accent-ink); border-radius: 10px; padding: 14px 20px; font-size: 17px; margin: 0; }
+
+  .bar { display: flex; gap: 10px; }
+  .bar input { flex: 1 1 auto; font-size: 18px; padding: 12px 14px; }
+  .bar button { flex: 0 0 auto; padding: 0 20px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #1b1d23; font-weight: 700; }
+  .bar button:hover { filter: brightness(1.06); }
+  .bar button:disabled { opacity: .6; cursor: default; }
+  .status { min-height: 1.5em; font-size: 15px; color: var(--muted); margin-top: -10px; }
+  .status.bad { color: var(--bad); }
+  .status .lat { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  .sizes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .size { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 10px; padding: 14px 12px; display: grid; gap: 4px; text-align: center; justify-items: center; min-height: 86px; align-content: center; }
+  .size b { font-size: 17px; }
+  .size span { font-family: var(--font-mono); font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .size:hover { border-color: var(--accent); }
+  .size[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+  .other { margin-top: 10px; cursor: default; }
+  .dims { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 14px; color: var(--muted); }
+  .dims input { width: 4.6em; padding: 6px 8px; font-size: 15px; text-align: center; }
+  @media (max-width: 560px) { .sizes { grid-template-columns: 1fr; } .bar { flex-wrap: wrap; } .bar button { flex: 1 1 100%; padding: 12px; } .tiles { min-height: 4.5em; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+</style>
+<style>body{margin:0;font-family:system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<main>
+  <section class="calc" id="calc">
+    <h2>Resolution Calculator</h2>
+
+    <div class="result" id="result">
+      <div class="readout">
+        <div class="num dim" id="num">—</div>
+        <div class="per" id="per">(— m per pixel)</div>
+        <button class="copy" type="button" id="copy" disabled>Copy</button>
+      </div>
+      <div class="tiles dim" id="tiles">Choose a site size below.</div>
+    </div>
+
+    <p class="instr">In the QGIS export window, select Horizontal under Resolution and type the number in both boxes. Then check that Columns and Rows are each 4,000 or less.</p>
+
+    <form class="bar" id="locform" autocomplete="off">
+      <input id="loc" type="text" placeholder="Enter site coordinates" aria-label="Site location" spellcheck="false">
+      <button type="submit" id="find">Find</button>
+    </form>
+    <div class="status" id="status" aria-live="polite"></div>
+
+    <div>
+      <div class="sizes" id="sizes">
+        <button class="size" type="button" data-size="small" aria-pressed="false"><b>Small Site</b><span>1 km × 1 km</span></button>
+        <button class="size" type="button" data-size="medium" aria-pressed="false"><b>Medium Site</b><span>2 km × 2 km</span></button>
+        <button class="size" type="button" data-size="large" aria-pressed="false"><b>Large Site</b><span>4 km × 4 km</span></button>
+      </div>
+      <div class="size other" id="otherBox" data-size="other" aria-pressed="false">
+        <b>Other Site Size</b>
+        <span class="dims">
+          <input id="otherW" type="number" inputmode="decimal" min="0.01" step="0.1" aria-label="Site width in kilometres"> km ×
+          <input id="otherH" type="number" inputmode="decimal" min="0.01" step="0.1" aria-label="Site height in kilometres"> km
+        </span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- storage (per viewer convenience only) ---------- */
+  function load(k) { try { var v = localStorage.getItem('rc.' + k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function save(k, v) { try { localStorage.setItem('rc.' + k, JSON.stringify(v)); } catch (e) {} }
+
+  /* ---------- state ---------- */
+  var savedSize = load('size') || {};
+  var state = {
+    loc: load('loc'),                                       // {lat, lon, name, approx}
+    size: { kind: savedSize.kind || null, w: savedSize.w || null, h: savedSize.h || null }
+  };
+
+  /* ---------- coordinate parsing (no network) ---------- */
+  function fin(x) { return typeof x === 'number' && isFinite(x); }
+
+  function parseUrl(t) {
+    var m = t.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/) || t.match(/[?&](?:q|ll|query|center)=(-?\d{1,2}\.\d+)(?:,|%2C)(-?\d{1,3}\.\d+)/i) || t.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/);
+    if (m) return { lat: +m[1], lon: +m[2] };
+    return null;
+  }
+
+  function parseDeg(t) {
+    var s = t.replace(/\b(lat|latitude|lon|lng|long|longitude)\b\s*[:=]?/gi, ' ');
+    if (!/^[\s\d.,°º'′’"″”NSEWnsew\-+:/dmsDMS]+$/.test(s)) return null;
+    if (!/\d/.test(s)) return null;
+    if (/\d\s*[dD]/.test(s)) s = s.replace(/(\d)\s*[dmDM]/g, '$1 ').replace(/(\d)[sS]/g, '$1 ');
+    s = s.replace(/[°º'′’"″”,:/]/g, ' ');
+    var tok = [], re = /([NSEWnsew])|([-+]?\d+(?:\.\d+)?)/g, m;
+    while ((m = re.exec(s))) tok.push(m[1] ? { h: m[1].toUpperCase() } : { n: parseFloat(m[2]), neg: /^-/.test(m[2]) });
+    if (!tok.length) return null;
+    function grp() { return { nums: [], negs: [], h: null }; }
+    var groups = [], cur = grp(), pending = null;
+    tok.forEach(function (k) {
+      if (k.h) {
+        if (!cur.nums.length) pending = k.h;
+        else if (!cur.h) { cur.h = k.h; groups.push(cur); cur = grp(); }
+        else { groups.push(cur); cur = grp(); pending = k.h; }
+      } else {
+        if (cur.nums.length === 3) { groups.push(cur); cur = grp(); }
+        if (pending && cur.nums.length === 0) { cur.h = pending; pending = null; }
+        cur.nums.push(Math.abs(k.n)); cur.negs.push(k.neg);
+      }
+    });
+    if (cur.nums.length) groups.push(cur);
+    var hasH = groups.some(function (g) { return g.h; });
+    if (!hasH) {
+      var flat = [], negs = [];
+      groups.forEach(function (g) { flat = flat.concat(g.nums); negs = negs.concat(g.negs); });
+      function mk(a, b) { return { nums: flat.slice(a, b), negs: negs.slice(a, b), h: null }; }
+      if (flat.length === 1) groups = [mk(0, 1)];
+      else if (flat.length === 2) groups = [mk(0, 1), mk(1, 2)];
+      else if (flat.length === 3) groups = [mk(0, 3)];
+      else if (flat.length === 4) groups = [mk(0, 2), mk(2, 4)];
+      else if (flat.length === 6) groups = [mk(0, 3), mk(3, 6)];
+      else return null;
+    }
+    function val(g) {
+      var d = g.nums[0], mi = g.nums[1] || 0, se = g.nums[2] || 0;
+      if (mi < 0 || mi >= 60 || se < 0 || se >= 60) return NaN;
+      var v = d + mi / 60 + se / 3600;
+      return (g.negs[0] || g.h === 'S' || g.h === 'W') ? -v : v;
+    }
+    var latG = null, lonG = null;
+    groups.forEach(function (g) { if (g.h === 'N' || g.h === 'S') latG = latG || g; else if (g.h === 'E' || g.h === 'W') lonG = lonG || g; });
+    if (!latG) {
+      var rest = groups.filter(function (g) { return g !== lonG; });
+      latG = rest[0] || null; lonG = lonG || rest[1] || null;
+      if (latG && lonG && Math.abs(val(latG)) > 90 && Math.abs(val(lonG)) <= 90) { var tmp = latG; latG = lonG; lonG = tmp; }
+    }
+    if (!latG) return null;
+    var lat = val(latG), lon = lonG ? val(lonG) : null;
+    if (!fin(lat) || Math.abs(lat) > 90) return null;
+    if (lon !== null && (!fin(lon) || Math.abs(lon) > 180)) return null;
+    return { lat: lat, lon: lon };
+  }
+
+  /* UTM: "12T 414500 4622000" (band letter) or "12N 414500 4622000" */
+  function parseUtm(t) {
+    var m = t.trim().match(/^(\d{1,2})\s*([C-HJ-NP-Xc-hj-np-x])\s+(\d{5,7}(?:\.\d+)?)\s*[mM]?[,\s]+(\d{6,8}(?:\.\d+)?)\s*[mM]?$/);
+    if (!m) return null;
+    var zone = +m[1], band = m[2].toUpperCase(), E = +m[3], N = +m[4];
+    if (zone < 1 || zone > 60) return null;
+    var south = band < 'N';
+    var a = 6378137, f = 1 / 298.257223563, k0 = 0.9996, n = f / (2 - f);
+    var A = a / (1 + n) * (1 + n * n / 4 + Math.pow(n, 4) / 64);
+    var b1 = n / 2 - 2 * n * n / 3 + 37 * Math.pow(n, 3) / 96, b2 = n * n / 48 + Math.pow(n, 3) / 15, b3 = 17 * Math.pow(n, 3) / 480;
+    var d1 = 2 * n - 2 * n * n / 3 - 2 * Math.pow(n, 3), d2 = 7 * n * n / 3 - 8 * Math.pow(n, 3) / 5, d3 = 56 * Math.pow(n, 3) / 15;
+    var xi = (N - (south ? 1e7 : 0)) / (k0 * A), eta = (E - 5e5) / (k0 * A);
+    var xip = xi - (b1 * Math.sin(2 * xi) * Math.cosh(2 * eta) + b2 * Math.sin(4 * xi) * Math.cosh(4 * eta) + b3 * Math.sin(6 * xi) * Math.cosh(6 * eta));
+    var etap = eta - (b1 * Math.cos(2 * xi) * Math.sinh(2 * eta) + b2 * Math.cos(4 * xi) * Math.sinh(4 * eta) + b3 * Math.cos(6 * xi) * Math.sinh(6 * eta));
+    var chi = Math.asin(Math.sin(xip) / Math.cosh(etap));
+    var phi = chi + d1 * Math.sin(2 * chi) + d2 * Math.sin(4 * chi) + d3 * Math.sin(6 * chi);
+    var lam0 = (zone * 6 - 183) * Math.PI / 180;
+    var lam = lam0 + Math.atan2(Math.sinh(etap), Math.cos(xip));
+    var lat = phi * 180 / Math.PI, lon = lam * 180 / Math.PI;
+    if (!fin(lat) || Math.abs(lat) > 84) return null;
+    return { lat: lat, lon: lon, name: 'UTM ' + zone + band };
+  }
+
+  /* Plus codes (Open Location Code) */
+  var OLC = '23456789CFGHJMPQRVWX';
+  function olcDecode(code) {
+    var c = code.toUpperCase().replace(/\+/g, '').replace(/0+/g, '');
+    var lat = -90, lon = -180, latP = 400, lonP = 400, i;
+    for (i = 0; i < Math.min(c.length, 10); i += 2) {
+      latP /= 20; lonP /= 20;
+      lat += latP * OLC.indexOf(c.charAt(i)); lon += lonP * OLC.indexOf(c.charAt(i + 1));
+    }
+    for (i = 10; i < Math.min(c.length, 15); i++) {
+      latP /= 5; lonP /= 4;
+      var idx = OLC.indexOf(c.charAt(i));
+      lat += latP * Math.floor(idx / 4); lon += lonP * (idx % 4);
+    }
+    return { lat: lat + latP / 2, lon: lon + lonP / 2 };
+  }
+  function olcEncode10(lat, lon) {
+    lat = Math.min(89.9999999, Math.max(-90, lat)) + 90; lon = ((lon + 180) % 360 + 360) % 360;
+    var code = '', latR = 20, lonR = 20;
+    for (var i = 0; i < 5; i++) {
+      var a = Math.floor(lat / latR), b = Math.floor(lon / lonR);
+      code += OLC.charAt(a) + OLC.charAt(b);
+      lat -= a * latR; lon -= b * lonR; latR /= 20; lonR /= 20;
+    }
+    return code.slice(0, 8) + '+' + code.slice(8);
+  }
+  function olcRecover(shortCode, refLat, refLon) {
+    var sc = shortCode.toUpperCase(), pad = 8 - sc.indexOf('+');
+    var res = Math.pow(20, 2 - pad / 2), half = res / 2;
+    var full = olcEncode10(refLat, refLon).slice(0, pad) + sc;
+    var c = olcDecode(full);
+    if (refLat + half < c.lat && c.lat - res >= -90) c.lat -= res;
+    else if (refLat - half > c.lat && c.lat + res <= 90) c.lat += res;
+    if (refLon + half < c.lon && c.lon - res >= -180) c.lon -= res;
+    else if (refLon - half > c.lon && c.lon + res <= 180) c.lon += res;
+    return c;
+  }
+  var FULL_OLC = /^[23456789CFGHJMPQRVWX]{4}(?:[23456789CFGHJMPQRVWX]{2}|00){2}\+(?:[23456789CFGHJMPQRVWX]{2,7})?$/i;
+  var SHORT_OLC = /^([23456789CFGHJMPQRVWX]{2,6}\+[23456789CFGHJMPQRVWX]{2,7})\s+(.+)$/i;
+
+  function parseLocal(t) {
+    t = t.trim();
+    if (!t) return null;
+    var r = parseUrl(t); if (r) return { lat: r.lat, lon: r.lon, name: 'Map link', approx: false };
+    var compact = t.replace(/\s/g, '');
+    if (FULL_OLC.test(compact)) { var d = olcDecode(compact); return { lat: d.lat, lon: d.lon, name: 'Plus code ' + compact.toUpperCase(), approx: false }; }
+    r = parseUtm(t); if (r) return { lat: r.lat, lon: r.lon, name: r.name, approx: false };
+    r = parseDeg(t); if (r) return { lat: r.lat, lon: r.lon, name: 'Coordinates', approx: false };
+    return null;
+  }
+
+  /* ---------- geocoding (text that is not coordinates) ---------- */
+  var sampleNs; // undefined = not asked yet, null = unavailable
+  async function getSample() {
+    if (sampleNs !== undefined) return sampleNs;
+    try { sampleNs = (window.claude && typeof window.claude.use === 'function') ? await window.claude.use('sample') : null; }
+    catch (e) { sampleNs = null; }
+    return sampleNs;
+  }
+  async function viaClaude(q) {
+    var s = await getSample();
+    if (!s) return undefined;
+    var prompt = 'You are a geocoder. Find the place described between the <place> tags and reply with JSON only, no other text.\n' +
+      'If you can identify it, reply {"lat": <decimal degrees, north positive>, "lon": <decimal degrees, east positive>, "name": "<place, region or state, country>"}. ' +
+      'For a street address, the centre of its town or city is accurate enough. Resolve company and facility names to the town they are in when you know it. ' +
+      'If the text does not describe a real place on Earth, or you cannot tell which place it means, reply {"error": "not found"}.\n' +
+      '<place>' + q.replace(/[<>]/g, ' ').slice(0, 300) + '</place>';
+    try {
+      var r = await s.json(prompt, { modelTier: 'default' });
+      if (r && fin(r.lat) && Math.abs(r.lat) <= 90) return { lat: r.lat, lon: fin(r.lon) ? r.lon : null, name: String(r.name || q).slice(0, 80), approx: true };
+      return null;
+    } catch (e) {
+      if (e && e.code === 'not_granted') { sampleNs = null; return undefined; }
+      return null;
+    }
+  }
+  function fetchT(url, ms) {
+    var ctl = new AbortController(); var tm = setTimeout(function () { ctl.abort(); }, ms || 8000);
+    return fetch(url, { signal: ctl.signal, headers: { 'Accept': 'application/json' } }).finally(function () { clearTimeout(tm); });
+  }
+  async function viaNominatim(q) {
+    var r = await fetchT('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(q));
+    var j = await r.json();
+    if (!j || !j[0]) return null;
+    return { lat: +j[0].lat, lon: +j[0].lon, name: String(j[0].display_name || q).split(',').slice(0, 3).join(',').trim(), approx: true };
+  }
+  async function viaPhoton(q) {
+    var r = await fetchT('https://photon.komoot.io/api/?limit=1&q=' + encodeURIComponent(q));
+    var j = await r.json();
+    var f = j && j.features && j.features[0]; if (!f) return null;
+    var p = f.properties || {};
+    var name = [p.name, p.city || p.county, p.state, p.country].filter(function (x, i, a) { return x && a.indexOf(x) === i; }).join(', ');
+    return { lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], name: name || q, approx: true };
+  }
+  async function geocodeText(q) {
+    var r = await viaClaude(q);
+    if (r !== undefined) return r;              // Claude answered: found (object) or not found (null)
+    var ran = false;
+    try { r = await viaNominatim(q); ran = true; if (r) return r; } catch (e) {}
+    try { r = await viaPhoton(q); ran = true; if (r) return r; } catch (e) {}
+    return ran ? null : undefined;               // undefined = no geocoder could run
+  }
+  async function locate(text) {
+    var local = parseLocal(text);
+    if (local) return local;
+    var m = text.trim().match(SHORT_OLC);
+    if (m) {
+      var ref = await geocodeText(m[2]);
+      if (!ref) return ref;
+      var c = olcRecover(m[1], ref.lat, ref.lon);
+      return { lat: c.lat, lon: c.lon, name: 'Plus code ' + m[1].toUpperCase() + ' near ' + ref.name, approx: false };
+    }
+    return geocodeText(text);
+  }
+
+  /* ---------- size and tile plan ---------- */
+  var PRESET = { small: [1, 1], medium: [2, 2], large: [4, 4] };
+  var OVERLAP = 3; // metres between tiles
+  function dims() {
+    var s = state.size;
+    if (s.kind in PRESET) return PRESET[s.kind];
+    if (s.kind === 'other' && s.w > 0 && s.h > 0) return [s.w, s.h];
+    return null;
+  }
+  function plan(wkm, hkm) {
+    var W = wkm * 1000, H = hkm * 1000, pick = null;
+    [0.3, 0.6, 1.0].forEach(function (r) {
+      if (pick) return;
+      var span = 4000 * r - OVERLAP;
+      var nx = Math.max(1, Math.ceil(W / span)), ny = Math.max(1, Math.ceil(H / span)), n = nx * ny;
+      if ((r === 0.3 && n === 1) || (r === 0.6 && n <= 4) || r === 1.0) pick = { res: r, nx: nx, ny: ny, n: n, pw: W / nx + (nx > 1 ? OVERLAP : 0), ph: H / ny + (ny > 1 ? OVERLAP : 0) };
+    });
+    return pick;
+  }
+  function km(m) { return (Math.round(m / 100) / 10).toFixed(1).replace(/\.0$/, '') + ' km'; }
+
+  /* ---------- render ---------- */
+  var statusEl = $('status'), numEl = $('num'), perEl = $('per'), copyEl = $('copy'), tilesEl = $('tiles');
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function fmtLat(lat) { return Math.abs(lat).toFixed(2) + '° ' + (lat < 0 ? 'S' : 'N'); }
+  function renderStatus(msg, bad) {
+    statusEl.className = 'status' + (bad ? ' bad' : '');
+    if (msg !== undefined) { statusEl.textContent = msg; return; }
+    var L = state.loc;
+    if (!L) { statusEl.textContent = ''; return; }
+    statusEl.innerHTML = esc(L.name) + ' · <span class="lat">' + (L.approx ? 'about ' : '') + fmtLat(L.lat) + '</span>';
+  }
+  function render() {
+    var d = dims();
+    document.querySelectorAll('.size').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.size === state.size.kind)); });
+    if (!d) {
+      numEl.textContent = '—'; numEl.className = 'num dim'; perEl.textContent = '(— m per pixel)'; copyEl.disabled = true;
+      tilesEl.className = 'tiles dim';
+      tilesEl.textContent = state.size.kind === 'other' ? 'Enter both sides of the site in kilometres.' : 'Choose a site size below.';
+      return;
+    }
+    var p = plan(d[0], d[1]);
+    perEl.textContent = '(' + p.res.toFixed(1) + ' m per pixel)';
+    tilesEl.className = 'tiles';
+    tilesEl.textContent = p.n === 1 ? 'Create 1 map tile.'
+      : 'Create ' + p.n + ' map tiles: ' + p.nx + ' horizontal, ' + p.ny + ' vertical, about ' + km(p.pw) + ' × ' + km(p.ph) + ' each. Overlap edges by ~' + OVERLAP + ' m.';
+    if (state.loc) {
+      numEl.textContent = (p.res / Math.cos(state.loc.lat * Math.PI / 180)).toFixed(3); numEl.className = 'num'; copyEl.disabled = false;
+    } else {
+      numEl.textContent = '—'; numEl.className = 'num dim'; copyEl.disabled = true;
+    }
+  }
+
+  /* ---------- events ---------- */
+  var locIn = $('loc'), busy = false;
+  function setLoc(r, text) { state.loc = r; save('loc', r); save('loctext', text); renderStatus(); render(); }
+  locIn.addEventListener('input', function () {
+    var r = parseLocal(locIn.value);
+    if (r) setLoc(r, locIn.value);
+    else if (!locIn.value.trim()) setLoc(null, '');
+  });
+  $('locform').addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    var q = locIn.value.trim();
+    if (!q || busy) return;
+    var local = parseLocal(q);
+    if (local) { setLoc(local, q); return; }
+    busy = true; $('find').disabled = true; renderStatus('Finding…');
+    try {
+      var r = await locate(q);
+      if (r) { state.loc = r; save('loc', r); save('loctext', q); renderStatus(); }
+      else { state.loc = null; save('loc', null); renderStatus(r === undefined ? 'Location not found. Type coordinates instead.' : 'Location not found', true); }
+    } catch (e) { state.loc = null; renderStatus('Location not found', true); }
+    busy = false; $('find').disabled = false; render();
+  });
+  document.querySelectorAll('button.size').forEach(function (b) {
+    b.addEventListener('click', function () { state.size.kind = b.dataset.size; save('size', state.size); render(); });
+  });
+  var otherBox = $('otherBox'), otherW = $('otherW'), otherH = $('otherH');
+  function pickOther() { state.size.w = parseFloat(otherW.value); state.size.h = parseFloat(otherH.value); state.size.kind = 'other'; save('size', state.size); render(); }
+  otherBox.addEventListener('click', function (ev) { if (ev.target.tagName !== 'INPUT') { pickOther(); otherW.focus(); } });
+  [otherW, otherH].forEach(function (f) { f.addEventListener('focus', pickOther); f.addEventListener('input', pickOther); });
+  copyEl.addEventListener('click', function () {
+    var txt = numEl.textContent;
+    function done() { copyEl.textContent = 'Copied'; copyEl.classList.add('done'); setTimeout(function () { copyEl.textContent = 'Copy'; copyEl.classList.remove('done'); }, 1400); }
+    function fallback() { var r = document.createRange(); r.selectNodeContents(numEl); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); try { document.execCommand('copy'); done(); } catch (e) {} }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, fallback); else fallback();
+  });
+
+  /* ---------- boot ---------- */
+  var savedText = load('loctext'); if (savedText) locIn.value = savedText;
+  if (state.size.w) otherW.value = state.size.w;
+  if (state.size.h) otherH.value = state.size.h;
+  renderStatus(); render();
+
+  window.RC = { parseLocal: parseLocal, parseDeg: parseDeg, parseUtm: parseUtm, olcDecode: olcDecode, olcEncode10: olcEncode10, olcRecover: olcRecover, plan: plan };
+})();
+</script>
+</body>
+</html>
